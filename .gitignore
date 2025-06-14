@@ -1,0 +1,67 @@
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# SvelteKit
+.svelte-kit/
+/build/
+/dist/
+/out/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Testing and Coverage
+/coverage/
+.nyc_output/
+
+# Docker
+docker-compose.override.yml
+docker-compose.*.yml
+.dockerignore
+
+# Direnv
+.envrc
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Project specific
+app/server/.env
+app/web/.env
+app/server/build/
+app/web/build/
+app/server/dist/
+app/web/dist/

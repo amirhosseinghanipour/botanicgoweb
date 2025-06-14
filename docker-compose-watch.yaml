@@ -1,0 +1,12 @@
+services:
+  backend:
+    context: ./app/server
+    paths:
+      - .
+    action: rebuild
+
+  frontend:
+    context: ./app/web
+    paths:
+      - .
+    action: rebuild

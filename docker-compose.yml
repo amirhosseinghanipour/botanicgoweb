@@ -1,0 +1,56 @@
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - botanic-network
+
+  backend:
+    build:
+      context: ./app/server
+      dockerfile: Dockerfile
+    environment:
+      - REDIS_ADDR=redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_CALLBACK_URL=${GITHUB_CALLBACK_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
+    depends_on:
+      redis:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    networks:
+      - botanic-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./app/web
+      dockerfile: Dockerfile
+    environment:
+      - VITE_BACKEND_URL=http://localhost:8080
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "5173:5173"
+    networks:
+      - botanic-network
+    restart: unless-stopped
+
+networks:
+  botanic-network:
+    driver: bridge
+
+volumes:
+  redis_data:

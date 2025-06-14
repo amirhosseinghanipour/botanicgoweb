@@ -1,0 +1,1 @@
+-- Redis is used for data storage. No schema file is needed.
