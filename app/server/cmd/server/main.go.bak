@@ -4,8 +4,8 @@ import (
 	"botanic/internal/auth"
 	"botanic/internal/db"
 	"botanic/internal/handlers"
-	"botanic/internal/litellm" // <-- CHANGED
 	"botanic/internal/middleware"
+	"botanic/internal/openrouter"
 	"log"
 	"net/http"
 
@@ -15,24 +15,29 @@ import (
 )
 
 func main() {
+	// Load environment variables
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: .env file not found")
 	}
 
+	// Initialize database
 	if err := db.InitializeRedis(); err != nil {
 		log.Fatalf("Failed to initialize Redis: %v", err)
 	}
 	defer db.CloseRedis()
 
+	// Initialize auth
 	if err := auth.Initialize(); err != nil {
 		log.Fatalf("Failed to initialize auth: %v", err)
 	}
 
-	// Initialize LiteLLM client
-	liteLLMClient := litellm.NewClient() // <-- CHANGED
+	// Initialize OpenRouter client
+	openRouterClient := openrouter.NewClient()
 
+	// Create Echo instance
 	e := echo.New()
 
+	// Middleware
 	e.Use(emiddleware.Logger())
 	e.Use(emiddleware.Recover())
 	e.Use(emiddleware.CORSWithConfig(emiddleware.CORSConfig{
@@ -44,7 +49,12 @@ func main() {
 		ExposeHeaders:    []string{"Set-Cookie", "Authorization"},
 		AllowOriginFunc: func(origin string) (bool, error) {
 			return origin == "http://localhost:5173", nil
-		}}))
+		},
+	}))
+
+	/*
+		e.Use(middleware.Logger()) e.Use(middleware.Recover()) e.Use(middleware.CORSWithConfig(middleware.CORSConfig{ AllowOrigins:     []string{"http://localhost:5173"}, AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions}, AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, echo.HeaderCookie, "X-CSRF-Token"}, AllowCredentials: true, MaxAge:           300, // Maximum value not ignored by any of major browsers ExposeHeaders:    []string{"Set-Cookie", "Authorization"}, AllowOriginFunc: func(origin string) (bool, error) { return origin == "http://localhost:5173", nil }, }))
+	*/
 	// Auth routes
 	e.POST("/api/auth/register", handlers.Register)
 	e.POST("/api/auth/login", handlers.Login)
@@ -72,7 +82,8 @@ func main() {
 	chat.POST("/sessions/:id/messages", handlers.CreateMessage)
 
 	// WebSocket endpoint
-	e.GET("/ws", handlers.NewWSHandler(liteLLMClient).HandleWebSocket) // <-- CHANGED
+	e.GET("/ws", handlers.NewWSHandler(openRouterClient).HandleWebSocket)
 
+	// Start server
 	e.Logger.Fatal(e.Start(":8000"))
 }

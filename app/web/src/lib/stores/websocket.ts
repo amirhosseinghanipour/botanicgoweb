@@ -1,293 +1,244 @@
+// web/src/lib/stores/websocket.ts
+
 import { writable, derived, get } from "svelte/store";
 import { browser } from "$app/environment";
 import { auth } from './auth';
 import { api } from '$lib/api/client';
-import { isOffline } from './offline';
-import { llmStore } from './llm';
 import type { Message } from '$lib/types';
-import { secureStorage } from '$lib/utils/secureStorage';
 import { API_URL } from '$lib/config';
+import { v4 as uuidv4 } from 'uuid'; // New import for UUID generation
 
 interface WebSocketState {
-    connected: boolean;
-    connecting: boolean;
-    error: string | null;
-    messages: Message[];
-    messageQueue: Message[];
-    loading: boolean;
-    pendingMessage: Message | null;
-    lastMessageId: string | null;
-    retryCount: number;
+  connected: boolean;
+  connecting: boolean;
+  error: string | null;
+  messages: Message[];
+  retryCount: number;
 }
 
 const MAX_RETRIES = 5;
-const RETRY_DELAY = 2000; // 2 seconds
 
-type MessageCallback = (message: any) => void;
+type MessageCallback = (message: Message) => void;
 
 let ws: WebSocket | null = null;
 let sessionId: string | undefined;
 let manualClose = false;
 let messageCallback: MessageCallback | undefined;
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function createWebSocketStore() {
-    const { subscribe, set, update } = writable<WebSocketState>({
-        connected: false,
-        connecting: false,
+  const { subscribe, set, update } = writable<WebSocketState>({
+    connected: false,
+    connecting: false,
+    error: null,
+    messages: [],
+    retryCount: 0
+  });
+
+  const loadMessages = async (sid?: string) => {
+    const currentSessionId = sid || sessionId;
+    if (!currentSessionId) return;
+
+    try {
+      const newMessages = await api.getSessionMessages(currentSessionId);
+      update(state => ({
+        ...state,
+        messages: newMessages,
         error: null,
-        messages: [],
-        messageQueue: [],
-        loading: false,
-        pendingMessage: null,
-        lastMessageId: null,
-        retryCount: 0
-    });
+      }));
+    } catch (err) {
+      console.error("Failed to load messages:", err);
+      update(state => ({
+        ...state,
+        error: "Failed to load messages",
+      }));
+    }
+  };
 
-    let reconnectTimeout: NodeJS.Timeout | null = null;
-    let retryTimeout: number | null = null;
-
-    const loadMessages = async (beforeId?: string) => {
-        if (!sessionId) return;
-
-        try {
-            const newMessages = await api.getSessionMessages(sessionId, beforeId);
-            if (newMessages.length > 0) {
-                update(state => ({
-                    ...state,
-                    messages: beforeId ? [...state.messages, ...newMessages] : newMessages,
-                    lastMessageId: newMessages[newMessages.length - 1].id
-                }));
-            }
-        } catch (err) {
-            console.error("Failed to load messages:", err);
-            update(state => ({
-                ...state,
-                error: "Failed to load messages"
-            }));
-        }
-    };
-
-    const connect = async (sid: string) => {
-        if (!browser || !sid) return;
-
-        sessionId = sid;
-        manualClose = false;
-
-        update(state => ({ ...state, connecting: true, error: null }));
-
-        const authState = get(auth);
-        if (!authState.token) {
-            update(state => ({ ...state, connecting: false, error: 'No authentication token available' }));
-            return;
-        }
-
-        console.log(`sessionId: ${sessionId}`);
-        console.log(`token: ${authState.token}`);
-        const wsUrl = `${API_URL.replace(/^http/, 'ws')}/ws?session_id=${encodeURIComponent(sessionId)}&token=${encodeURIComponent(authState.token)}`;
-        console.log('Connecting to WebSocket:', wsUrl);
-
-        try {
-            console.log(new WebSocket(wsUrl));
-            ws = new WebSocket(wsUrl);
-
-            let connectTimeout = setTimeout(() => {
-                if (ws && ws.readyState === WebSocket.CONNECTING) {
-                    ws.close();
-                    update(state => ({
-                        ...state,
-                        error: 'WebSocket connection timeout',
-                        connected: false,
-                        connecting: false
-                    }));
-                }
-            }, 5000);
-
-            ws.onopen = () => {
-                clearTimeout(connectTimeout);
-                console.log('WebSocket connection established');
-                update(state => ({
-                    ...state,
-                    connected: true,
-                    connecting: false,
-                    error: null,
-                    retryCount: 0
-                }));
-
-                sendQueuedMessages();
-            };
-
-            ws.onclose = (event) => {
-                console.log('WebSocket connection closed:', event);
-                update(state => ({ ...state, connected: false, connecting: false }));
-
-                if (!manualClose && sessionId) {
-                    const currentState = get({ subscribe });
-                    if (currentState.retryCount < MAX_RETRIES) {
-                        const retryDelay = Math.min(1000 * Math.pow(2, currentState.retryCount), 10000);
-                        console.log(`Attempting to reconnect in ${retryDelay}ms... (attempt ${currentState.retryCount + 1}/${MAX_RETRIES})`);
-                        setTimeout(() => {
-                            update(state => ({ ...state, retryCount: state.retryCount + 1 }));
-                            connect(sessionId!);
-                        }, retryDelay);
-                    } else {
-                        console.error('Max reconnection attempts reached');
-                        update(state => ({
-                            ...state,
-                            error: 'Failed to connect after multiple attempts. Please refresh the page.'
-                        }));
-                    }
-                }
-            };
-
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                update(state => ({ ...state, error: 'WebSocket connection error' }));
-            };
-
-            ws.onmessage = (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-                    if (message && typeof message === 'object') {
-                        messageCallback?.(message);
-
-                        update(state => ({
-                            ...state,
-                            messages: [...state.messages, message],
-                            loading: false,
-                            pendingMessage: null
-                        }));
-                    }
-                } catch (error) {
-                    console.error('Failed to parse WebSocket message:', error);
-                }
-            };
-        } catch (error) {
-            console.error('Failed to create WebSocket connection:', error);
-            update(state => ({
-                ...state,
-                connected: false,
-                connecting: false,
-                error: 'Failed to create WebSocket connection'
-            }));
-        }
+  const connect = async (sid: string) => {
+    if (!browser || (ws && ws.readyState === WebSocket.OPEN)) {
+      console.log('WebSocket connect: Already connected or not in browser environment.');
+      return;
     }
 
-    function disconnect() {
-        manualClose = true;
-        if (ws) {
-            ws.close();
-            ws = null;
-        }
-        if (reconnectTimeout) {
-            clearTimeout(reconnectTimeout);
-            reconnectTimeout = null;
-        }
-        if (retryTimeout) {
-            clearTimeout(retryTimeout);
-            retryTimeout = null;
-        }
-        sessionId = undefined;
+    sessionId = sid;
+    manualClose = false;
+
+    update(state => ({ ...state, connecting: true, error: null }));
+
+    const authState = get(auth);
+    if (!authState.token) {
+      console.error('WebSocket connect: No authentication token available. Cannot connect.');
+      update(state => ({ ...state, connecting: false, error: 'No authentication token available' }));
+      return;
+    }
+
+    const wsUrl = `${API_URL.replace(/^http/, 'ws')}/ws?session_id=${encodeURIComponent(sessionId)}&token=${encodeURIComponent(authState.token)}`;
+    console.log('Attempting to connect WebSocket to URL:', wsUrl);
+    console.log('Using token (first 10 chars):', authState.token.substring(0, 10), '...');
+
+    try {
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('WebSocket connection established!');
+        if (reconnectTimeout) clearTimeout(reconnectTimeout);
         update(state => ({
-            ...state,
-            connected: false,
-            connecting: false,
-            error: null,
-            messages: [],
-            messageQueue: [],
-            loading: false,
-            pendingMessage: null,
-            lastMessageId: null,
-            retryCount: 0
+          ...state,
+          connected: true,
+          connecting: false,
+          error: null,
+          retryCount: 0
         }));
-    }
+      };
 
-    function sendMessage(message: Message) {
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-            update(state => ({
-                ...state,
-                messageQueue: [...state.messageQueue, message]
-            }));
-            return;
+      ws.onclose = (event) => {
+        console.log('WebSocket connection closed:', event.code, event.reason);
+        ws = null;
+        update(state => ({ ...state, connected: false, connecting: false }));
+        if (!manualClose) {
+          reconnect();
         }
+      };
 
-        const messageWithModel = {
-            ...message,
-            model: get(llmStore).selectedModel?.id || 'default'
-        };
+      ws.onerror = (error) => {
+        console.error('WebSocket error occurred:', error);
+        update(state => ({ ...state, error: 'WebSocket connection error' }));
+      };
 
+      ws.onmessage = (event) => {
+        console.log('Raw WebSocket event data:', event.data);
         try {
-            ws.send(JSON.stringify(messageWithModel));
-            update(state => ({
-                ...state,
-                messages: [...state.messages, messageWithModel],
-                loading: true,
-                pendingMessage: messageWithModel
-            }));
-        } catch (error) {
-            console.error('Failed to send message:', error);
-            update(state => ({
-                ...state,
-                error: 'Failed to send message',
-                messageQueue: [...state.messageQueue, messageWithModel]
-            }));
+          const message: Message = JSON.parse(event.data);
+          console.log('Parsed WebSocket message:', message);
 
-            const currentState = get({ subscribe });
-            if (currentState.retryCount < MAX_RETRIES) {
-                if (retryTimeout) {
-                    clearTimeout(retryTimeout);
-                }
-                retryTimeout = window.setTimeout(() => {
-                    update(state => ({ ...state, retryCount: state.retryCount + 1 }));
-                    sendMessage(message);
-                }, RETRY_DELAY);
+          if (messageCallback) {
+            console.log('Calling messageCallback...');
+            messageCallback(message);
+            console.log('messageCallback finished.');
+          }
+
+          update(state => {
+            if (state.messages.some(m => m.id === message.id)) {
+              console.log('Message with ID already exists, skipping:', message.id);
+              return state;
             }
+            console.log('Adding new message to store:', message.id);
+            return {
+              ...state,
+              messages: [...state.messages, message],
+            };
+          });
+
+        } catch (error) {
+          console.error('Failed to parse WebSocket message or process:', error);
         }
+      };
+
+    } catch (error) {
+      console.error('Failed to initialize WebSocket connection:', error);
+      update(state => ({
+        ...state,
+        connecting: false,
+        error: 'Failed to create WebSocket connection'
+      }));
+      reconnect();
+    }
+  };
+
+  const reconnect = () => {
+    const { retryCount } = get({ subscribe });
+    if (retryCount >= MAX_RETRIES) {
+      update(state => ({ ...state, error: "Connection failed. Please refresh." }));
+      return;
     }
 
-    function sendQueuedMessages() {
-        const state = get({ subscribe });
-        if (state.messageQueue.length > 0) {
-            state.messageQueue.forEach(message => {
-                sendMessage(message);
-            });
-            update(state => ({ ...state, messageQueue: [] }));
-        }
+    const delay = Math.pow(2, retryCount) * 1000;
+    console.log(`Attempting to reconnect in ${delay / 1000}s...`);
+
+    if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    reconnectTimeout = setTimeout(() => {
+      update(state => ({ ...state, retryCount: state.retryCount + 1 }));
+      if (sessionId) connect(sessionId);
+    }, delay);
+  };
+
+  function disconnect() {
+    manualClose = true;
+    if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    if (ws) {
+      ws.close();
+      console.log('WebSocket manually disconnected.');
     }
-
-    const loadMoreMessages = () => {
-        const currentState = get({ subscribe });
-        if (currentState.lastMessageId) {
-            loadMessages(currentState.lastMessageId);
-        }
-    };
-
-    // Subscribe to auth store to handle disconnect when user logs out
-    auth.subscribe((state: { user: { id: string } | null }) => {
-        if (!state.user) {
-            disconnect();
-        }
+    set({
+      connected: false,
+      connecting: false,
+      error: null,
+      messages: [],
+      retryCount: 0
     });
+  }
 
-    return {
-        subscribe,
-        connect,
-        disconnect,
-        sendMessage,
-        loadMessages,
-        loadMoreMessages,
-        onMessage(callback: MessageCallback) {
-            messageCallback = callback;
-        }
+  function sendMessage(messageContent: string, currentSessionId: string) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.error("WebSocket is not connected. Cannot send message.");
+      update(state => ({ ...state, error: "Cannot send message: not connected." }));
+      return;
+    }
+
+    const authState = get(auth);
+    const userId = authState.user?.id;
+
+    if (!userId) {
+      console.error("User not authenticated. Cannot send message.");
+      return;
+    }
+
+    let finalContent: string;
+    // Defensive check: ensure content is always a string
+    if (typeof messageContent !== 'string') {
+      console.warn('sendMessage received non-string content; attempting to convert to string.', messageContent);
+      finalContent = String(messageContent);
+    } else {
+      finalContent = messageContent;
+    }
+
+    const message = {
+      id: uuidv4(), // Generate a unique ID for the message
+      type: 'message',
+      role: 'user',
+      content: finalContent, // Now guaranteed to be a string
+      sessionId: currentSessionId, // Ensure sessionId is passed from calling component
+      userId: userId,
+      createdAt: new Date().toISOString()
     };
+
+    console.log('Sending WebSocket message (final content as string):', message);
+    ws.send(JSON.stringify(message));
+  }
+
+  auth.subscribe((state) => {
+    if (!state.isAuthenticated && !state.isLoading) {
+      console.log('Auth state changed to unauthenticated, disconnecting WebSocket.');
+      disconnect();
+    }
+  });
+
+  return {
+    subscribe,
+    connect,
+    disconnect,
+    sendMessage,
+    loadMessages,
+    onMessage(callback: MessageCallback) {
+      messageCallback = callback;
+    }
+  };
 }
 
-// Create and export the store
 export const store = createWebSocketStore();
-
-// Derived stores
-export const isReconnecting = derived(store, $store => $store.connecting && !$store.connected);
 export const messages = derived(store, $store => $store.messages);
-export const lastMessage = derived(store, $store => $store.messages[$store.messages.length - 1]);
 export const isConnected = derived(store, $store => $store.connected);
-export const isLoading = derived(store, $store => $store.loading);
+export const isLoading = derived(store, $store => $store.connecting);
+export const isReconnecting = derived(store, $store => $store.connecting && !$store.connected);
 export const error = derived(store, $store => $store.error);

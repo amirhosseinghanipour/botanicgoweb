@@ -10,7 +10,6 @@ import (
 	echo "github.com/labstack/echo/v4"
 )
 
-// JWTAuth middleware (remains unchanged)
 func JWTAuth() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -43,7 +42,6 @@ func JWTAuth() echo.MiddlewareFunc {
 type tokenBucket struct {
 	tokens     int
 	lastRefill time.Time
-	lastSeen   time.Time // <-- ADDED: Track last access time for cleanup
 	mu         sync.Mutex
 }
 
@@ -53,35 +51,10 @@ var (
 )
 
 const (
-	rateLimitCapacity = 20
-	rateLimitRefill   = 20
+	rateLimitCapacity = 20 // max tokens (requests) per window
+	rateLimitRefill   = 20 // refill tokens per window
 	rateLimitWindow   = 1 * time.Minute
-	cleanupInterval   = 5 * time.Minute  // <-- ADDED: How often to run cleanup
-	bucketMaxAge      = 15 * time.Minute // <-- ADDED: Max age of an inactive bucket
 )
-
-// Initialize a background goroutine to clean up old buckets
-func init() {
-	go cleanupBuckets()
-}
-
-func cleanupBuckets() {
-	// Run this function on a ticker
-	ticker := time.NewTicker(cleanupInterval)
-	defer ticker.Stop()
-
-	for {
-		<-ticker.C
-		bucketsMutex.Lock()
-		for ip, bucket := range buckets {
-			// Check if the bucket has been inactive for longer than the max age
-			if time.Since(bucket.lastSeen) > bucketMaxAge {
-				delete(buckets, ip)
-			}
-		}
-		bucketsMutex.Unlock()
-	}
-}
 
 func RateLimiter() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -94,23 +67,20 @@ func RateLimiter() echo.MiddlewareFunc {
 				bucket = &tokenBucket{tokens: rateLimitCapacity, lastRefill: time.Now()}
 				buckets[ip] = bucket
 			}
-			// Update last seen time on every request
-			bucket.lastSeen = time.Now()
 			bucketsMutex.Unlock()
 
 			bucket.mu.Lock()
-			defer bucket.mu.Unlock()
 
 			if time.Since(bucket.lastRefill) > rateLimitWindow {
 				bucket.tokens = rateLimitRefill
 				bucket.lastRefill = time.Now()
 			}
-
 			if bucket.tokens > 0 {
 				bucket.tokens--
+				bucket.mu.Unlock()
 				return next(c)
 			}
-
+			bucket.mu.Unlock()
 			return echo.NewHTTPError(http.StatusTooManyRequests, "rate limit exceeded")
 		}
 	}
@@ -127,7 +97,7 @@ func getIP(r *http.Request) string {
 	return ip
 }
 
-// IsAllowedOrigin (remains unchanged)
+// CORS and WebSocket Origin Check
 func IsAllowedOrigin(origin string) bool {
 	allowed := []string{"http://localhost:5173"}
 	for _, o := range allowed {
@@ -136,4 +106,12 @@ func IsAllowedOrigin(origin string) bool {
 		}
 	}
 	return false
+}
+
+func GetUserID(c echo.Context) (string, error) {
+	userID, ok := c.Get("userID").(string)
+	if !ok {
+		return "", echo.NewHTTPError(http.StatusUnauthorized, "user not authenticated")
+	}
+	return userID, nil
 }
