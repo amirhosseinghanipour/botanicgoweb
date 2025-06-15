@@ -32,6 +32,10 @@
   let showModelComparison = false;
   let comparisonPrompt = "";
 
+  function handleNewChat() {
+  goto('/'); // Navigate to the root page, which is likely the chat list page
+  }
+
   const messages = writable<Message[]>([]);
   const messagesLength = derived(messages, ($messages) => $messages.length);
 
@@ -244,16 +248,16 @@
     });
   }
 
-  // Handle processing of queued messages when online
-  $: if (!$isOffline) {
-    // This is the correct way to pass the sendMessage *from the websocket store*
-    // for offline processing.
-    processQueue(websocket.sendMessage);
-  }
+  // // Handle processing of queued messages when online
+  // $: if (!$isOffline) {
+  //   // This is the correct way to pass the sendMessage *from the websocket store*
+  //   // for offline processing.
+  //   processQueue(websocket.sendMessage);
+  // }
 
-  const handleNewChat = () => {
-    goto("/");
-  };
+  // const handleNewChat = () => {
+  //   goto("/");
+  // };
 </script>
 
 <div class="flex flex-col h-full text-black dark:text-white">

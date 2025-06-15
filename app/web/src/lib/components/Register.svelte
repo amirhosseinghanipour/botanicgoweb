@@ -42,9 +42,9 @@
     try {
       isSubmitting = true;
       auth.setLoading(true);
-      auth.setError(null);
+      auth.setError("Error...s");
 
-      const response = await api.register({ email, password, name });
+      const response = await api.register({ email, password });
       auth.setUser(response.user);
       await goto("/chat");
     } catch (err: unknown) {
@@ -66,7 +66,7 @@
   async function handleSocialLogin(provider: "google" | "github") {
     try {
       auth.setLoading(true);
-      auth.setError(null);
+      auth.setError("Error...");
       const url = provider === "google" ? await api.getGoogleAuthUrl() : await api.getGithubAuthUrl();
       window.location.href = url;
     } catch (err) {
@@ -162,28 +162,7 @@
       class="space-y-4"
       novalidate
     >
-      <div>
-        <label
-          for="name"
-          class="block text-sm font-medium text-left text-gray-700 dark:text-gray-300"
-          >Full Name</label
-        >
-        <div class="mt-1">
-          <input
-            id="name"
-            name="name"
-            type="text"
-            bind:value={name}
-            autocomplete="name"
-            required
-            class="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white sm:text-sm bg-gray-100 dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-describedby={$auth.error ? "register-error" : undefined}
-            disabled={$auth.isLoading}
-            placeholder="Full Name"
-          />
-        </div>
-      </div>
-
+      
       <div>
         <label
           for="email-register"

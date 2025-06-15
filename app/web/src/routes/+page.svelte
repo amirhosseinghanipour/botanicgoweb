@@ -171,23 +171,11 @@
             <span>Creating...</span>
           </div>
         {:else}
-          Send Message
+          {@html icons.arrowUp}
         {/if}
       </button>
     </div>
     <div class="mt-4 flex items-center gap-3">
-      <button
-        class="flex items-center justify-center w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
-        aria-label="Upload file"
-      >
-        {@html icons.upload}
-      </button>
-      <button
-        class="flex items-center justify-center w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-900 text-black dark:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
-        aria-label="Think mode"
-      >
-        {@html icons.think}
-      </button>
       <div class="flex-grow"></div>
       {#if !$llmStore.isLoading && !$llmStore.error && ($llmStore.freeModels.length > 0 || $llmStore.nonFreeModels.length > 0)}
         <div class="relative" bind:this={dropdownRef}>
