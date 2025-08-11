@@ -21,7 +21,7 @@
 
 <div class="theme-selector relative">
   <button
-    class="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-900/50"
+    class="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
     aria-label="Select theme"
     on:click={() => (isOpen = !isOpen)}
   >
@@ -36,14 +36,14 @@
 
   {#if isOpen}
     <div
-      class="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-neutral-900/50 ring-1 ring-black ring-opacity-5 focus:outline-none"
+      class="absolute right-0 mt-2 w-48 rounded-xl glass z-50 focus:outline-none"
       role="menu"
       aria-orientation="vertical"
       aria-labelledby="theme-menu"
     >
       <div class="py-1" role="none">
         <button
-          class="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-900/50"
+          class="flex items-center w-full px-4 py-2 text-sm text-gray-800 dark:text-gray-100 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg"
           role="menuitem"
           on:click={() => handleThemeSelect('light')}
         >
@@ -51,7 +51,7 @@
           <span class="ml-3">Light</span>
         </button>
         <button
-          class="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-900/50"
+          class="flex items-center w-full px-4 py-2 text-sm text-gray-800 dark:text-gray-100 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg"
           role="menuitem"
           on:click={() => handleThemeSelect('dark')}
         >
@@ -59,7 +59,7 @@
           <span class="ml-3">Dark</span>
         </button>
         <button
-          class="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-900/50"
+          class="flex items-center w-full px-4 py-2 text-sm text-gray-800 dark:text-gray-100 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg"
           role="menuitem"
           on:click={() => handleThemeSelect('system')}
         >

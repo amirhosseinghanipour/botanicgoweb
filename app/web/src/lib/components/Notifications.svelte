@@ -11,8 +11,8 @@
       class:text-green-800={notification.type === 'success'}
       class:bg-red-100={notification.type === 'error'}
       class:text-red-800={notification.type === 'error'}
-      class:bg-blue-100={notification.type === 'info'}
-      class:text-blue-800={notification.type === 'info'}
+              class:bg-neutral-100 dark:bg-neutral-800={notification.type === 'info'}
+        class:text-neutral-800 dark:text-neutral-200={notification.type === 'info'}
       class:bg-yellow-100={notification.type === 'warning'}
       class:text-yellow-800={notification.type === 'warning'}
       transition:fly={{ y: -20, duration: 300 }}

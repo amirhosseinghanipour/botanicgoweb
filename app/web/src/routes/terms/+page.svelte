@@ -8,7 +8,8 @@
 </svelte:head>
 
 <div class="max-w-4xl mx-auto px-4 py-12">
-  <h1 class="text-4xl font-bold mb-8">Terms of Service</h1>
+  <div class="glass rounded-2xl p-8 md:p-12 elev-1">
+    <h1 class="headline mb-6">Terms of Service</h1>
   
   <div class="prose dark:prose-invert max-w-none">
     <p class="text-lg mb-6">Last updated: {new Date().toLocaleDateString()}</p>
@@ -88,6 +89,7 @@
       <h2 class="text-2xl font-semibold mb-4">8. Contact</h2>
       <p>For questions about these Terms, please contact us at support@botanic.ai</p>
     </section>
+  </div>
   </div>
 </div>
  

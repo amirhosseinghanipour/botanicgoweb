@@ -7,14 +7,13 @@
   import { auth } from '$lib/stores/auth';
   import { api } from '$lib/api/client';
   import { notifications } from '$lib/stores/notifications';
+  import LLMSelector from '$lib/components/LLMSelector.svelte';
 
-  const DEFAULT_MODEL_ID = "deepseek/deepseek-chat:free";
-  const SELECTED_MODEL_KEY = "lastSelectedModelId";
+  const DEFAULT_MODEL_ID = "gpt-oss-20b";
 
   let observer: IntersectionObserver;
   let loadingTrigger: HTMLElement;
   let promptTextValue = '';
-  let selectedModelId = DEFAULT_MODEL_ID;
   let searchQuery = '';
   let isDropdownOpen = false;
   let dropdownRef: HTMLDivElement;
@@ -22,11 +21,11 @@
 
   // Top free models from famous providers
   const TOP_FREE_MODELS = [
+    "gpt-oss-20b",
     "deepseek/deepseek-chat:free",
     "mistralai/Mistral-7B-Instruct-v0.2",
-    "google/gemma-2b-it",
-    "meta-llama/Llama-2-7b-chat-hf",
-    "microsoft/phi-2"
+    "google/gemma-7b-it",
+    "meta-llama/Llama-2-7b-chat-hf"
   ];
 
   $: filteredModels = searchQuery === ""
@@ -50,10 +49,13 @@
 
     isSubmitting = true;
     try {
+      // Use the selected model from the store, fallback to default
+      const selectedModel = $llmStore.selectedModel?.id || DEFAULT_MODEL_ID;
+      
       // Encode the message and model as URL parameters
       const params = new URLSearchParams({
         message: promptTextValue,
-        model: selectedModelId
+        model: selectedModel
       });
 
       // Redirect to chat with the parameters
@@ -71,9 +73,7 @@
   }
 
   function handleModelSelect(model: Model) {
-    selectedModelId = model.id;
     llmStore.selectModel(model);
-    localStorage.setItem(SELECTED_MODEL_KEY, model.id);
   }
 
   function handleClickOutside(event: MouseEvent) {
@@ -82,19 +82,15 @@
     }
   }
 
+  function isModelSelected(model: Model): boolean {
+    return $llmStore.selectedModel?.id === model.id;
+  }
+
   onMount(() => {
     // Load initial models
     llmStore.loadModels();
 
-    // Load last selected model
-    const saved = localStorage.getItem(SELECTED_MODEL_KEY);
-    if (saved) {
-      const model = [...$llmStore.freeModels, ...$llmStore.nonFreeModels].find(m => m.id === saved);
-      if (model) {
-        selectedModelId = model.id;
-        llmStore.selectModel(model);
-      }
-    }
+    // Selected model is managed by llmStore; nothing else to do here
 
     // Set up intersection observer for infinite scroll
     observer = new IntersectionObserver(
@@ -127,15 +123,15 @@
 </script>
 
 <div class="flex flex-col items-center text-center max-w-7xl mx-auto px-4">
-  <h1 class="text-5xl md:text-6xl font-bold tracking-tight mt-12 mb-4 text-black dark:text-white">
+  <h1 class="display-2 mt-12 mb-4 text-black dark:text-white">
     Ask Botanic Anything
   </h1>
-  <p class="max-w-2xl text-base text-neutral-600 dark:text-neutral-400 mb-10">
-    An open-source AI chat interface. Built with love under war in the middle-east.
+  <p class="max-w-2xl subtitle mb-10">
+        The best open-source, privacy-first chat interface loved by hundreds of people!
   </p>
 
   <div class="w-full max-w-4xl mb-12">
-    <div class="relative w-full">
+    <div class="relative w-full glass rounded-2xl elev-1">
       <textarea
         bind:value={promptTextValue}
         on:input={(e) => updatePrompt((e.target as HTMLTextAreaElement).value)}
@@ -147,13 +143,13 @@
         }}
         rows="5"
         placeholder="Ask anything or describe what you want to create..."
-        class="w-full pl-6 pr-20 py-5 bg-white dark:bg-black rounded-2xl text-lg outline-none resize-none align-bottom placeholder-neutral-500 dark:placeholder-neutral-600 border border-neutral-200 dark:border-neutral-800 focus:ring-2 focus:ring-black dark:focus:ring-white transition-shadow duration-300"
+        class="w-full pl-6 pr-20 py-5 bg-white/70 dark:bg-black/40 rounded-2xl text-lg outline-none resize-none align-bottom placeholder-neutral-500 dark:placeholder-neutral-600 border border-neutral-200/60 dark:border-neutral-800/60 focus:ring-2 focus:ring-black dark:focus:ring-white backdrop-blur-xl transition-shadow duration-300"
         aria-label="Enter your prompt"
       ></textarea>
       <button
         on:click={handleSubmit}
         disabled={!promptTextValue.trim() || isSubmitting}
-        class="absolute top-5 right-5 w-10 h-10 flex items-center justify-center bg-black dark:bg-white text-white dark:text-black font-bold rounded-full disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105"
+        class="absolute top-5 right-5 w-10 h-10 flex items-center justify-center bg-black dark:bg-white text-white dark:text-black font-bold rounded-full shadow-md disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105"
         aria-label="Submit prompt"
       >
         {#if isSubmitting}
@@ -175,50 +171,10 @@
         {/if}
       </button>
     </div>
-    <div class="mt-4 flex items-center gap-3">
-      <div class="flex-grow"></div>
-      {#if !$llmStore.isLoading && !$llmStore.error && ($llmStore.freeModels.length > 0 || $llmStore.nonFreeModels.length > 0)}
-        <div class="relative" bind:this={dropdownRef}>
-          <button
-            on:click={() => isDropdownOpen = !isDropdownOpen}
-            class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 rounded-lg hover:border-black dark:hover:border-white transition-colors"
-          >
-            <span>{[...$llmStore.freeModels, ...$llmStore.nonFreeModels].find(m => m.id === selectedModelId)?.name || 'Select Model'}</span>
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          
-          {#if isDropdownOpen}
-            <div class="absolute right-0 mt-2 w-72 bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg z-50">
-              <div class="p-2 border-b border-neutral-200 dark:border-neutral-800">
-                <input
-                  type="text"
-                  bind:value={searchQuery}
-                  placeholder="Search models..."
-                  class="w-full px-3 py-2 text-sm bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
-                />
-              </div>
-              <div class="max-h-60 overflow-y-auto">
-                {#each filteredModels as model}
-                  <button
-                    on:click={() => {
-                      handleModelSelect(model);
-                      isDropdownOpen = false;
-                    }}
-                    class="w-full px-4 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-900 {model.id === selectedModelId ? 'bg-neutral-100 dark:bg-neutral-900' : ''}"
-                  >
-                    <div class="font-medium">{model.name}</div>
-                    <div class="text-xs text-neutral-500 dark:text-neutral-400 truncate">
-                      {model.description}
-                    </div>
-                  </button>
-                {/each}
-              </div>
-            </div>
-          {/if}
-        </div>
-      {/if}
+
+    
+    <div class="mt-3 w-full flex justify-end">
+      <LLMSelector showTopModels={false} minimal={true} />
     </div>
   </div>
 
@@ -250,15 +206,22 @@
         No models available at the moment.
       </div>
     {:else}
-      <!-- Free Models Section -->
+      
       {#if $llmStore.freeModels.length > 0}
         <div class="mb-8">
-          <h2 class="text-2xl font-semibold mb-4">Free Models</h2>
+          <div class="relative my-8">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t border-gray-300"></div>
+            </div>
+            <div class="relative flex justify-center">
+              <h2 class="text-2xl font-semibold px-4 bg-white dark:bg-black">Free Models</h2>
+            </div>
+          </div>
           <div class="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {#each $llmStore.freeModels as model}
               <button
                 on:click={() => handleModelSelect(model)}
-                class="relative text-left p-5 border rounded-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 {selectedModelId === model.id ? 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white' : 'bg-white dark:bg-black border-neutral-200 dark:border-neutral-800 hover:border-black dark:hover:border-white'}"
+                class="relative text-left p-5 border rounded-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 {isModelSelected(model) ? 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-white dark:bg-black border-neutral-200 dark:border-neutral-800 hover:border-black dark:hover:border-white'}"
                 aria-label={`Select ${model.name}`}
                 role="button"
               >
@@ -267,7 +230,7 @@
                     {@html icons.model}
                   </div>
                   <h3 class="font-semibold text-base mb-1.5">{model.name}</h3>
-                  <p class="text-sm leading-relaxed line-clamp-2 {selectedModelId === model.id ? 'text-neutral-400 dark:text-neutral-500' : 'text-neutral-600 dark:text-neutral-400'}">
+                  <p class="text-sm leading-relaxed line-clamp-2 {isModelSelected(model) ? 'text-neutral-400 dark:text-neutral-500' : 'text-neutral-600 dark:text-neutral-400'}">
                     {model.description}
                   </p>
                   <div class="text-xs mt-2">
@@ -279,25 +242,25 @@
           </div>
         </div>
       {/if}
-      <!-- Divider with Text -->
+      
       {#if $llmStore.freeModels.length > 0 && $llmStore.nonFreeModels.length > 0}
         <div class="relative my-8">
           <div class="absolute inset-0 flex items-center">
             <div class="w-full border-t border-gray-300"></div>
           </div>
           <div class="relative flex justify-center">
-            <span class="bg-white px-4 text-gray-500">Premium Models</span>
+            <h2 class="text-2xl font-semibold px-4 bg-white dark:bg-black">Non-Free Models</h2>
           </div>
         </div>
       {/if}
-      <!-- Non-Free Models Section -->
+      
       {#if $llmStore.nonFreeModels.length > 0}
         <div class="mb-8">
           <div class="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {#each $llmStore.nonFreeModels as model}
               <button
                 on:click={() => handleModelSelect(model)}
-                class="relative text-left p-5 border rounded-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 {selectedModelId === model.id ? 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white' : 'bg-white dark:bg-black border-neutral-200 dark:border-neutral-800 hover:border-black dark:hover:border-white'}"
+                class="relative text-left p-5 border rounded-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 {isModelSelected(model) ? 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white shadow-lg' : 'bg-white dark:bg-black border-neutral-200 dark:border-neutral-800 hover:border-black dark:hover:border-white'}"
                 aria-label={`Select ${model.name}`}
                 role="button"
               >
@@ -306,7 +269,7 @@
                     {@html icons.model}
                   </div>
                   <h3 class="font-semibold text-base mb-1.5">{model.name}</h3>
-                  <p class="text-sm leading-relaxed line-clamp-2 {selectedModelId === model.id ? 'text-neutral-400 dark:text-neutral-500' : 'text-neutral-600 dark:text-neutral-400'}">
+                  <p class="text-sm leading-relaxed line-clamp-2 {isModelSelected(model) ? 'text-neutral-400 dark:text-neutral-500' : 'text-neutral-600 dark:text-neutral-400'}">
                     {model.description}
                   </p>
                   <div class="text-xs mt-2">
@@ -318,11 +281,11 @@
           </div>
         </div>
       {/if}
-      <!-- Loading Trigger for Infinite Scroll -->
+      
       {#if $llmStore.hasMore}
         <div bind:this={loadingTrigger} class="h-10 flex items-center justify-center">
           {#if $llmStore.isLoading}
-            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-black dark:border-white"></div>
           {/if}
         </div>
       {/if}

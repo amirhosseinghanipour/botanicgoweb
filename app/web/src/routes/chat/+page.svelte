@@ -2,8 +2,10 @@
   import { onMount } from "svelte";
   import { auth } from "$lib/stores/auth";
   import { goto } from "$app/navigation";
+  import { dev } from '$app/environment';
   import { api } from "$lib/api/client";
   import { llmStore } from "$lib/stores/llm";
+  import LLMSelector from "$lib/components/LLMSelector.svelte";
   import ChatList from "$lib/components/ChatList.svelte";
   import ChatInterface from "$lib/components/ChatInterface.svelte";
   import { sessions, activeSessionId } from "$lib/stores";
@@ -17,12 +19,24 @@
   let showSidebar = true;
 
   onMount(async () => {
+    // In dev, bypass backend calls and just show the UI
+    if (dev) {
+      try {
+        await llmStore.loadModels();
+      } finally {
+        isLoading = false;
+      }
+      return;
+    }
+
     try {
-      const isAuthenticated = await auth.checkAuth();
-      if (!isAuthenticated) {
-        console.log('Not authenticated, redirecting to login...');
-        goto("/");
-        return;
+      if (!dev) {
+        const isAuthenticated = await auth.checkAuth();
+        if (!isAuthenticated) {
+          console.log('Not authenticated, redirecting to login...');
+          goto("/");
+          return;
+        }
       }
 
       await llmStore.loadModels();
@@ -115,7 +129,7 @@
         }
       } catch (error) {
         console.error("Failed to load sessions:", error);
-        if (error instanceof ApiError && error.status === 401) {
+        if (!dev && error instanceof ApiError && error.status === 401) {
           console.log("Session expired, redirecting to login...");
           await auth.clearAuth();
           goto("/");
@@ -144,11 +158,11 @@
   }
 </script>
 
-<div class="flex h-[calc(100vh-4rem)] bg-white dark:bg-black">
+<div class="flex h-screen bg-white dark:bg-black">
   {#if isLoading}
-    <!-- Skeleton Loader -->
+    
     <div class="flex w-full h-full animate-pulse">
-      <!-- Skeleton Sidebar -->
+      
       <div class="w-80 border-r border-neutral-200 dark:border-neutral-800 p-4 space-y-4 hidden md:block">
         <div class="h-10 bg-neutral-200 dark:bg-neutral-800 rounded-md"></div>
         <div class="space-y-3 pt-4">
@@ -161,9 +175,9 @@
         </div>
       </div>
 
-      <!-- Skeleton Main Chat Area -->
+      
       <div class="flex-1 flex flex-col">
-        <!-- Skeleton Header -->
+        
         <div class="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-800">
           <div class="flex items-center gap-4">
             <div class="w-6 h-6 bg-neutral-200 dark:bg-neutral-800 rounded"></div>
@@ -171,9 +185,9 @@
           </div>
         </div>
 
-        <!-- Skeleton Chat Messages -->
+        
         <div class="flex-1 p-6 space-y-6 overflow-y-auto">
-          <!-- Bot Message Skeleton -->
+          
           <div class="flex items-start gap-3">
             <div class="w-8 h-8 bg-neutral-200 dark:bg-neutral-800 rounded-full"></div>
             <div class="flex-1 space-y-2">
@@ -181,14 +195,14 @@
               <div class="h-4 w-1/2 bg-neutral-200 dark:bg-neutral-800 rounded"></div>
             </div>
           </div>
-          <!-- User Message Skeleton -->
+          
           <div class="flex items-start gap-3 justify-end">
             <div class="flex-1 space-y-2 text-right">
               <div class="h-4 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded ml-auto"></div>
             </div>
              <div class="w-8 h-8 bg-neutral-200 dark:bg-neutral-800 rounded-full"></div>
           </div>
-          <!-- Bot Message Skeleton -->
+          
           <div class="flex items-start gap-3">
             <div class="w-8 h-8 bg-neutral-200 dark:bg-neutral-800 rounded-full"></div>
             <div class="flex-1 space-y-2">
@@ -198,83 +212,50 @@
           </div>
         </div>
 
-        <!-- Skeleton Message Input -->
+        
         <div class="p-4 mb-14 mt-auto border-t border-neutral-200 dark:border-neutral-800">
            <div class="h-12 w-full bg-neutral-200 dark:bg-neutral-800 rounded-lg"></div>
         </div>
       </div>
     </div>
   {:else}
-    <!-- Actual Content -->
-    <div class="flex w-full">
-      <!-- Sidebar -->
-      <div 
-        class="transition-all duration-300 ease-in-out {showSidebar ? 'w-80' : 'w-0'} overflow-hidden"
+    
+      <div class="flex w-full">
+      
+        <div 
+          class="transition-all duration-300 ease-in-out {showSidebar ? 'w-72' : 'w-0'} overflow-hidden"
       >
-        <!-- This inner div has a fixed width to prevent content from being squashed during transition -->
-        <div class="h-full w-80 border-r border-neutral-200 dark:border-neutral-800">
+        
+          <div class="h-full w-72 border-r border-neutral-200 dark:border-neutral-800">
           <ChatList />
         </div>
       </div>
 
-      <!-- Main Chat Area -->
-      <div class="flex-1 flex flex-col">
-        <!-- Header -->
-        <div class="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-800">
-          <div class="flex items-center gap-4">
-            <button
-              class="p-2 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white"
-              on:click={toggleSidebar}
-              title={showSidebar ? "Hide sidebar" : "Show sidebar"}
-              aria-label="Toggle sidebar"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="w-6 h-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+      
+        <div class="flex-1 flex flex-col">
+          
+          <div class="flex items-center justify-between px-3 md:px-4 py-2 border-b border-neutral-200 dark:border-neutral-800">
+            <div class="flex items-center gap-2">
+              <button
+                class="p-2 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white"
+                on:click={toggleSidebar}
+                aria-label="Toggle history"
+                title={showSidebar ? "Hide history" : "Show history"}
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
-            </button>
-            <h1 class="text-xl font-semibold text-black dark:text-white">
-              {#if $activeSessionId}
-                {$sessions.find(s => s.id === $activeSessionId)?.title || 'New Chat'}
-              {:else}
-                New Chat
-              {/if}
-            </h1>
-          </div>
-          <div class="flex items-center gap-4">
-            {#if $isOffline}
-              <div class="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
-                <span class="text-sm">Offline</span>
+              </button>
+              <a href="/" class="font-semibold tracking-tight text-sm md:text-base text-gray-900 dark:text-gray-100">BOTANIC</a>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="hidden sm:block">
+                <LLMSelector showTopModels={false} minimal={true} />
               </div>
-            {/if}
+            </div>
           </div>
-        </div>
 
-        <!-- Chat Interface -->
+        
         <div class="flex-1 overflow-hidden">
           {#if $activeSessionId && $activeSessionId !== 'undefined'}
             <ChatInterface sessionId={$activeSessionId} />

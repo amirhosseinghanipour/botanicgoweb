@@ -6,6 +6,7 @@ import (
 	"botanic/internal/handlers"
 	"botanic/internal/litellm" // <-- CHANGED
 	"botanic/internal/middleware"
+	"os"
 	"log"
 	"net/http"
 
@@ -35,16 +36,34 @@ func main() {
 
 	e.Use(emiddleware.Logger())
 	e.Use(emiddleware.Recover())
-	e.Use(emiddleware.CORSWithConfig(emiddleware.CORSConfig{
-		AllowOrigins:     []string{"http://localhost:5173"},
-		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
-		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, echo.HeaderCookie, "X-CSRF-Token"},
-		AllowCredentials: true,
-		MaxAge:           300,
-		ExposeHeaders:    []string{"Set-Cookie", "Authorization"},
-		AllowOriginFunc: func(origin string) (bool, error) {
-			return origin == "http://localhost:5173", nil
-		}}))
+    // CORS: allow localhost and optional ALLOWED_ORIGINS (comma-separated)
+    allowedOriginsEnv := os.Getenv("ALLOWED_ORIGINS")
+    allowedOrigins := []string{"http://localhost:5173"}
+    if allowedOriginsEnv != "" {
+        // split by comma
+        tmp := []string{}
+        start := 0
+        for i := 0; i <= len(allowedOriginsEnv); i++ {
+            if i == len(allowedOriginsEnv) || allowedOriginsEnv[i] == ',' {
+                if start < i {
+                    tmp = append(tmp, allowedOriginsEnv[start:i])
+                }
+                start = i + 1
+            }
+        }
+        if len(tmp) > 0 {
+            allowedOrigins = append(allowedOrigins, tmp...)
+        }
+    }
+
+    e.Use(emiddleware.CORSWithConfig(emiddleware.CORSConfig{
+        AllowOrigins:     allowedOrigins,
+        AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
+        AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, echo.HeaderCookie, "X-CSRF-Token"},
+        AllowCredentials: true,
+        MaxAge:           300,
+        ExposeHeaders:    []string{"Set-Cookie", "Authorization"},
+    }))
 	// Auth routes
 	e.POST("/api/auth/register", handlers.Register)
 	e.POST("/api/auth/login", handlers.Login)
@@ -59,8 +78,9 @@ func main() {
 	e.PUT("/api/auth/preferences", handlers.UpdatePreferences, middleware.Auth)
 	e.POST("/api/auth/avatar", handlers.UploadAvatar, middleware.Auth)
 
-	// Models routes
-	e.GET("/api/models", handlers.GetModels)
+    // Public routes
+    e.GET("/api/models", handlers.GetModels)
+    e.POST("/api/demo/message", handlers.DemoMessage)
 
 	// Chat routes
 	chat := e.Group("/api/chat")

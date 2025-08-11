@@ -13,17 +13,6 @@ export interface ChatSession {
   messages: Message[];
 }
 
-export interface Model {
-  id: string;
-  name: string;
-  description: string;
-  contextLength: number;
-  pricing: {
-    prompt: string;
-    completion: string;
-  };
-}
-
 // Theme
 export const isDarkMode = writable(
   browser && localStorage.getItem("theme") === "dark"
@@ -40,14 +29,6 @@ export const activeSessionId = writable<string | null>(
   browser && localStorage.getItem("activeSessionId") || null
 );
 
-// Models
-export const models = writable<Model[]>([]);
-
-// Active model
-export const activeModel = writable<string | null>(
-  browser && localStorage.getItem("activeModel") || null
-);
-
 // Loading states
 export const isLoading = writable(false);
 export const error = writable<string | null>(null);
@@ -55,9 +36,6 @@ export const isTextareaFocused = writable(false);
 
 // Prompt text
 export const promptText = writable('');
-
-// Selected model
-export const selectedModelId = writable<string | null>(null);
 
 // Auth state
 export const isLoggedIn = writable(false);
@@ -83,14 +61,6 @@ if (browser) {
       localStorage.setItem('activeSessionId', value);
     } else {
       localStorage.removeItem('activeSessionId');
-    }
-  });
-
-  activeModel.subscribe(value => {
-    if (value) {
-      localStorage.setItem('activeModel', value);
-    } else {
-      localStorage.removeItem('activeModel');
     }
   });
 } 

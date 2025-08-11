@@ -197,7 +197,7 @@
       <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Profile Settings</h2>
       
       <form on:submit|preventDefault={handleSubmit} class="space-y-6">
-        <!-- Avatar Section -->
+        
         <div class="flex items-center space-x-6">
           <div class="shrink-0">
             {#if avatarPreview}
@@ -246,7 +246,7 @@
           </div>
         </div>
 
-        <!-- Name Field -->
+        
         <div>
           <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Name
@@ -263,7 +263,7 @@
           {/if}
         </div>
 
-        <!-- Theme Preferences -->
+        
         <div>
           <fieldset>
             <legend class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

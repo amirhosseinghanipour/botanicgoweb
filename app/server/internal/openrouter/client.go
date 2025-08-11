@@ -208,6 +208,16 @@ func (c *Client) GetChatCompletion(messages []ChatMessage, model string, tempera
 func getFallbackModels() []Model {
 	return []Model{
 		{
+			ID:            "gpt-oss-20b",
+			Name:          "GPT OSS 20B",
+			ContextLength: 8192,
+			Pricing: Pricing{
+				Prompt:     "0",
+				Completion: "0",
+			},
+			Description: "Open source 20B parameter model for instruction following and chat",
+		},
+		{
 			ID:            "mistralai/mistral-7b-instruct",
 			Name:          "Mistral 7B Instruct",
 			ContextLength: 8192,

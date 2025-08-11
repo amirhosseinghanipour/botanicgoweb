@@ -60,7 +60,7 @@ type Hub struct {
 
 func newHub(llmClient *litellm.Client) *Hub {
 	return &Hub{
-		broadcast:  make(chan *Message),
+		broadcast:  make(chan *Message, 1000), // Increased buffer size to prevent blocking
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		rooms:      make(map[string]map[*Client]bool),
@@ -151,7 +151,7 @@ func (h *Hub) run() {
 					}
 				}
 
-				ctx, cancel := context.WithCancel(context.Background())
+				ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second) // Add timeout to prevent hanging
 				h.aiRequestMux.Lock()
 				h.aiRequests[message.SessionID] = cancel
 				h.aiRequestMux.Unlock()
@@ -166,41 +166,30 @@ func (h *Hub) run() {
 					// The incoming user message 'Content' field is already a string
 					// due to the struct change, so no need for json.Unmarshal here.
 					contentStr := msg.Content
-					log.Printf("LITELLM DEBUG Sending message to model : %q", contentStr)
+					log.Printf("MOCK DEBUG Sending message to model : %q", contentStr)
 
-					aiResp, err := h.llmClient.GetChatCompletion(ctx, []litellm.ChatMessage{{Role: "user", Content: contentStr}}, msg.Model, 0.7)
-					if err != nil {
-						if ctx.Err() == context.Canceled {
-							log.Printf("AI request for session %s was cancelled.", msg.SessionID)
-							// Optionally send a "stop" message to the frontend if needed
-							// h.broadcast <- &Message{Type: "stop", SessionID: msg.SessionID}
-							return
-						}
-						log.Printf("AI completion error: %v", err)
-						// TODO: Send an error message back to the client
-						// errorMsg, _ := json.Marshal(map[string]string{"error": "Failed to get AI response"})
-						// h.broadcast <- &Message{Type: "error", SessionID: msg.SessionID, Content: string(errorMsg), Role: "system"}
-						return
-					}
+					// Return mock response instead of calling LiteLLM
+					mockResponse := "This is a mock response from the AI. The LiteLLM proxy is not configured, so I'm providing a placeholder response. Your message was: " + contentStr
 
-					log.Printf("Received response from LiteLLM: %s", aiResp)
+					log.Printf("Sending mock response: %s", mockResponse)
 
-					// aiResp is already a string, and Message.Content is now string.
-					// No need to json.Marshal(aiResp) again unless aiResp itself is expected to be JSON string.
-					// If aiResp from litellm.Client.GetChatCompletion is a plain string,
-					// assign it directly. If it's a JSON string, ensure it's still treated as string.
-					// Assuming GetChatCompletion returns a plain string:
 					assistantMessage := &Message{
-						ID:        uuid.New().String(), // Generate a unique ID for the assistant's message
+						ID:        uuid.New().String(),
 						Type:      "message",
 						SessionID: msg.SessionID,
-						UserID:    "assistant", // This represents the AI assistant
-						Content:   aiResp,      // Directly assign the string content
+						UserID:    "assistant",
+						Content:   mockResponse,
 						Model:     msg.Model,
 						CreatedAt: time.Now(),
-						Role:      "assistant", // Set role to assistant
+						Role:      "assistant",
 					}
-					h.broadcast <- assistantMessage
+					
+					// Use non-blocking send to prevent hub.run() from blocking
+					select {
+					case h.broadcast <- assistantMessage:
+					default:
+						log.Printf("Warning: Broadcast channel is full, dropping assistant message for session %s", msg.SessionID)
+					}
 
 				}(ctx, message)
 			}
@@ -295,7 +284,7 @@ func (wh *WSHandler) HandleWebSocket(c echo.Context) error {
 		return err
 	}
 
-	client := &Client{hub: wh.hub, conn: conn, send: make(chan []byte, 256), room: sessionID}
+	client := &Client{hub: wh.hub, conn: conn, send: make(chan []byte, 512), room: sessionID} // Increased buffer size
 	client.hub.register <- client
 
 	go client.writePump()

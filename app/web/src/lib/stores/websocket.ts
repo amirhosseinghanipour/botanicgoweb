@@ -3,10 +3,10 @@
 import { writable, derived, get } from "svelte/store";
 import { browser } from "$app/environment";
 import { auth } from './auth';
-import { api } from '$lib/api/client';
+import { repository } from '$lib/data/repository';
+import { llmStore } from '$lib/stores/llm';
 import type { Message } from '$lib/types';
 import { API_URL } from '$lib/config';
-import { v4 as uuidv4 } from 'uuid'; // New import for UUID generation
 
 interface WebSocketState {
   connected: boolean;
@@ -40,10 +40,21 @@ function createWebSocketStore() {
     if (!currentSessionId) return;
 
     try {
-      const newMessages = await api.getSessionMessages(currentSessionId);
+      const ms = await repository.getSessionMessages(currentSessionId);
+      const mapped: Message[] = ms.map(m => ({
+        id: m.id,
+        session_id: m.sessionId,
+        user_id: '',
+        content: m.content,
+        model: m.model || 'default',
+        type: 'message',
+        created_at: m.createdAt,
+        updated_at: m.createdAt,
+        role: m.role,
+      }));
       update(state => ({
         ...state,
-        messages: newMessages,
+        messages: mapped,
         error: null,
       }));
     } catch (err) {
@@ -112,10 +123,27 @@ function createWebSocketStore() {
           const message: Message = JSON.parse(event.data);
           console.log('Parsed WebSocket message:', message);
 
+          // Handle error messages from server
+          if (message.type === 'error') {
+            console.error('Server error:', message.content);
+            update(state => ({
+              ...state,
+              error: message.content,
+            }));
+            return;
+          }
+
           if (messageCallback) {
             console.log('Calling messageCallback...');
-            messageCallback(message);
-            console.log('messageCallback finished.');
+            // Use setTimeout to prevent blocking the UI
+            setTimeout(() => {
+              try {
+                messageCallback!(message);
+              } catch (error) {
+                console.error('Error in messageCallback:', error);
+              }
+            }, 0);
+            console.log('messageCallback scheduled.');
           }
 
           update(state => {
@@ -129,6 +157,11 @@ function createWebSocketStore() {
               messages: [...state.messages, message],
             };
           });
+
+          // Persist assistant messages locally as well
+          if (message.role === 'assistant' && message.type === 'message') {
+            repository.createMessage({ sessionId: message.session_id, role: 'assistant', content: message.content, model: message.model }).catch(() => {});
+          }
 
         } catch (error) {
           console.error('Failed to parse WebSocket message or process:', error);
@@ -203,18 +236,35 @@ function createWebSocketStore() {
       finalContent = messageContent;
     }
 
+    const selectedModelId = get(llmStore).selectedModel?.id || 'gpt-oss-20b';
+
     const message = {
-      id: uuidv4(), // Generate a unique ID for the message
+      id: crypto.randomUUID(), // Generate a unique ID for the message
       type: 'message',
       role: 'user',
       content: finalContent, // Now guaranteed to be a string
       sessionId: currentSessionId, // Ensure sessionId is passed from calling component
       userId: userId,
+      model: selectedModelId,
       createdAt: new Date().toISOString()
     };
 
     console.log('Sending WebSocket message (final content as string):', message);
-    ws.send(JSON.stringify(message));
+    
+    // Use a timeout to prevent blocking if WebSocket is slow
+    const sendTimeout = setTimeout(() => {
+      console.error('WebSocket send timeout - message may not have been sent');
+      update(state => ({ ...state, error: "Message send timeout" }));
+    }, 5000);
+
+    try {
+      ws.send(JSON.stringify(message));
+      clearTimeout(sendTimeout);
+    } catch (error) {
+      clearTimeout(sendTimeout);
+      console.error('Failed to send WebSocket message:', error);
+      update(state => ({ ...state, error: "Failed to send message" }));
+    }
   }
 
   auth.subscribe((state) => {

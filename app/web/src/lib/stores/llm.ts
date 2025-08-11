@@ -34,11 +34,14 @@ interface LLMStore extends Writable<LLMStoreState> {
   loadModels: () => Promise<void>;
   loadMoreModels: () => Promise<void>;
   selectModel: (model: Model) => void;
+  getSelectedModelId: () => string | null;
 }
 
 const CACHE_KEY = 'cachedModels';
 const CACHE_TIMESTAMP_KEY = 'modelsCacheTimestamp';
+const SELECTED_MODEL_KEY = 'selectedModelId';
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const DEFAULT_MODEL_ID = 'gpt-oss-20b';
 
 function createLLMStore(): LLMStore {
   const initialState: LLMStoreState = {
@@ -69,6 +72,16 @@ function createLLMStore(): LLMStore {
           nonFreeModels: parsedData.nonFree || [],
           isLoading: false
         }));
+        
+        // Set default model if none is selected
+        const currentState = get(store);
+        if (!currentState.selectedModel && currentState.freeModels.length > 0) {
+          const defaultModel = currentState.freeModels.find(m => m.id === DEFAULT_MODEL_ID) || currentState.freeModels[0];
+          if (defaultModel) {
+            selectModel(defaultModel);
+          }
+        }
+        
         return true;
       } catch (e) {
         console.warn('Failed to parse cache:', e);
@@ -95,6 +108,20 @@ function createLLMStore(): LLMStore {
           pageSize: data.data.pageSize,
           isLoading: false
         }));
+        
+        // Ensure selected model is set based on saved preference or default
+        const currentState = get(store);
+        const savedModelId = browser ? localStorage.getItem(SELECTED_MODEL_KEY) : null;
+        const all = [...currentState.freeModels, ...currentState.nonFreeModels];
+        const saved = savedModelId ? all.find(m => m.id === savedModelId) : undefined;
+        const defaultModel = all.find(m => m.id === DEFAULT_MODEL_ID) || currentState.freeModels[0] || all[0] || null;
+        if (!currentState.selectedModel) {
+          if (saved) {
+            selectModel(saved);
+          } else if (defaultModel) {
+            selectModel(defaultModel);
+          }
+        }
       } else {
         throw new Error(data.error || 'Failed to fetch models');
       }
@@ -142,15 +169,30 @@ function createLLMStore(): LLMStore {
   const selectModel = (model: Model) => {
     store.update(state => ({ ...state, selectedModel: model }));
     if (browser && model) {
-      localStorage.setItem('selectedModelId', model.id);
+      localStorage.setItem(SELECTED_MODEL_KEY, model.id);
     }
   };
+
+  const getSelectedModelId = (): string | null => {
+    const state = get(store);
+    return state.selectedModel?.id || null;
+  };
+
+  // Initialize from localStorage if available
+  if (browser) {
+    const savedModelId = localStorage.getItem(SELECTED_MODEL_KEY);
+    if (savedModelId) {
+      // We'll set the actual model when models are loaded
+      // For now, just ensure we have the ID
+    }
+  }
 
   return {
     ...store,
     loadModels,
     loadMoreModels,
-    selectModel
+    selectModel,
+    getSelectedModelId
   };
 }
 

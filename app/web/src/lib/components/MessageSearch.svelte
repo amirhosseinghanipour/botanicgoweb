@@ -70,7 +70,7 @@
       <div class="p-4">
         <input
           type="text"
-          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-neutral-900/50 dark:text-white"
+          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white dark:bg-neutral-900/50 dark:text-white"
           placeholder="Search messages..."
           bind:value={searchQuery}
         />
@@ -79,7 +79,7 @@
       <div class="flex-1 overflow-y-auto p-4">
         {#if isLoading}
           <div class="flex justify-center py-4">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-black dark:border-white"></div>
           </div>
         {:else if error}
           <div class="text-red-500 text-center py-4">{error}</div>

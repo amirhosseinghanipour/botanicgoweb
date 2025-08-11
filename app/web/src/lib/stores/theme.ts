@@ -32,9 +32,19 @@ function createThemeStore() {
 function updateTheme(theme: Theme) {
   const root = window.document.documentElement;
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  
+
   root.classList.remove('light', 'dark');
   root.classList.add(isDark ? 'dark' : 'light');
+
+  // Force UA widgets and built-ins (scrollbars, inputs) to match selected theme
+  if (theme === 'system') {
+    // Allow UA to choose based on system
+    root.style.colorScheme = 'light dark';
+  } else if (theme === 'dark') {
+    root.style.colorScheme = 'dark';
+  } else {
+    root.style.colorScheme = 'light';
+  }
 }
 
 export const theme = createThemeStore();

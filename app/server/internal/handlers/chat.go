@@ -41,7 +41,7 @@ func CreateSession(c echo.Context) error {
 
 	// Set default model if not provided
 	if req.Model == "" {
-		req.Model = "deepseek/deepseek-chat:free"
+		req.Model = "gpt-oss-20b"
 	}
 
 	// Create session

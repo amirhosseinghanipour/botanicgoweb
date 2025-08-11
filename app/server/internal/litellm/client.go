@@ -52,7 +52,7 @@ func NewClient() *Client {
 	return &Client{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: 90 * time.Second, // Increased timeout for local models
+			Timeout: 30 * time.Second, // Reduced timeout to prevent long blocking
 		},
 	}
 }

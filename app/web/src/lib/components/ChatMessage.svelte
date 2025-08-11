@@ -13,8 +13,11 @@
     renderedContent = renderMarkdown(message.content);
   }
 
+  // Support both camelCase and snake_case from different sources
+  $: messageUserId = (message as any).userId ?? (message as any).user_id ?? '';
+  $: messageCreatedAt = (message as any).createdAt ?? (message as any).created_at ?? '';
   $: modelName = $llmStore.models.find(m => m.id === message.model)?.name || message.model;
-  $: isUser = browser && message.type === 'message' && message.userId === localStorage.getItem('userId');
+  $: isUser = browser && message.type === 'message' && messageUserId === localStorage.getItem('userId');
 
   const handleCopy = () => {
     if (browser) {
@@ -23,8 +26,8 @@
   };
 
   const formatTimestamp = () => {
-    return message.createdAt
-      ? new Date(message.createdAt).toLocaleTimeString([], {
+    return messageCreatedAt
+      ? new Date(messageCreatedAt).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
         })
@@ -32,17 +35,20 @@
   };
 </script>
 
-<div
-  class="w-full flex {isUser ? 'justify-end' : 'justify-start'}"
->
-  <div
-    class="max-w-xl lg:max-w-3xl flex flex-col px-4 py-2 my-1 relative group"
-  >
-    <div
-      class="text-base leading-relaxed break-words {isUser
-        ? 'border border-gray-200 rounded-l-3xl rounded-tr-3xl p-3 text-black dark:text-white'
-        : 'text-neutral-800 dark:text-neutral-200'}"
-    >
+<div class="w-full">
+  <div class="flex items-start gap-3 px-2 py-2 my-0.5 {isUser ? 'justify-end flex-row-reverse' : ''}">
+    
+    <div class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center {isUser ? 'bg-neutral-800 text-white dark:bg-white dark:text-black' : 'bg-neutral-100 text-neutral-700 dark:bg-neutral-900 dark:text-neutral-200'}">
+      {#if isUser}
+        <span class="text-sm">You</span>
+      {:else}
+        <span class="text-sm">AI</span>
+      {/if}
+    </div>
+    <div class="max-w-[min(70ch,calc(100%-4rem))] flex-1 relative group">
+      <div class="text-base leading-relaxed break-words {isUser
+        ? 'bg-white/70 dark:bg-black/40 border border-neutral-200/70 dark:border-neutral-800/70 rounded-2xl p-3 text-black dark:text-white backdrop-blur-xl shadow-sm'
+        : 'bg-white/60 dark:bg-neutral-900/50 border border-neutral-200/60 dark:border-neutral-800/60 rounded-2xl p-3 text-neutral-900 dark:text-neutral-100 backdrop-blur-xl shadow-sm'}">
       {#if message.type === 'typing'}
         <div class="flex items-center gap-1.5">
           <span class="w-2 h-2 bg-neutral-400 rounded-full animate-pulse"></span>
@@ -68,24 +74,21 @@
           {@html renderedContent}
         </div>
       {/if}
-    </div>
-    <div
-      class={isUser
-        ? "flex gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity"
-        : "flex gap-2 mt-2"}
-    >
-      {#if message.type === 'message'}
-        <button
-          on:click={handleCopy}
-          class="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800"
-          title="Copy"
-        >
-          {@html icons.copy}
-        </button>
-        <span class="text-xs text-neutral-500 self-center"
-          >{formatTimestamp()}</span
-        >
-      {/if}
+      </div>
+      <div class="flex items-center gap-2 mt-1 {isUser ? 'justify-end' : ''}">
+        {#if message.type === 'message'}
+          <button
+            on:click={handleCopy}
+            class="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800"
+            title="Copy"
+          >
+            {@html icons.copy}
+          </button>
+          <span class="text-[11px] text-neutral-500">
+            {formatTimestamp()}
+          </span>
+        {/if}
+      </div>
     </div>
   </div>
 </div>

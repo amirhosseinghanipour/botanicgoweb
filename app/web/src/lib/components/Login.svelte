@@ -15,6 +15,14 @@
   let error: ApiError | null = null;
   let formElement: HTMLFormElement;
   let emailInput: HTMLInputElement;
+  
+  function validateEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+  function validatePassword(value: string): boolean {
+    return value.length >= 6;
+  }
+  $: isFormValid = validateEmail(email) && validatePassword(password);
 
   // Focus email input on mount for better UX
   onMount(() => {
@@ -24,6 +32,9 @@
   async function handleSubmit(event?: SubmitEvent) {
     if (event) {
       event.preventDefault();
+    }
+    if (!isFormValid || loading) {
+      return;
     }
     loading = true;
     error = null;
@@ -54,43 +65,15 @@
   };
 </script>
 
-<div class="grid md:grid-cols-2 gap-8 items-center">
-  <div
-    class="relative h-full w-full rounded-lg overflow-hidden hidden md:block"
-    role="img"
-    aria-label="Abstract decorative background image"
-  >
-    <img
-      src="https://images.unsplash.com/photo-1556139930-c23fa4a4f934?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
-      alt="Abstract background"
-      class="h-full w-full object-cover"
-      loading="lazy"
-      decoding="async"
-    />
-    <div
-      class="absolute inset-0 bg-black/30 backdrop-blur-sm flex flex-col justify-center p-8"
-    >
-      <h2 class="text-4xl font-bold text-white mb-4">Welcome Back</h2>
-      <p class="text-white/80">
-        Sign in to continue your journey with AI-powered development.
-      </p>
-    </div>
-  </div>
-  <div class="flex flex-col justify-center">
-    <h1
-      class="text-3xl md:text-4xl font-bold tracking-tighter mb-2 text-center"
-    >
-      Sign In
-    </h1>
-    <p class="text-gray-500 dark:text-gray-400 mb-6 text-center">
-      Welcome back! Please enter your details.
-    </p>
-    <div class="space-y-4">
+<div class="min-h-[calc(100vh-7rem)] flex items-center justify-center px-4">
+  <div class="w-full max-w-md glass rounded-2xl p-6 md:p-8 elev-1">
+    <h1 class="headline text-center mb-6">Sign in</h1>
+    <div class="space-y-3">
       <button
         type="button"
         on:click={handleGoogleLogin}
         disabled={loading}
-        class="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        class="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-full border border-neutral-200/70 dark:border-neutral-800/70 hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Sign in with Google"
       >
         {@html icons.google}
@@ -100,21 +83,14 @@
         type="button"
         on:click={handleGithubLogin}
         disabled={loading}
-        class="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        class="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-full border border-neutral-200/70 dark:border-neutral-800/70 hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Sign in with GitHub"
       >
         {@html icons.github}
         <span>Sign in with GitHub</span>
       </button>
     </div>
-    <div
-      class="my-6 flex items-center before:flex-1 before:border-t before:border-gray-300 dark:before:border-gray-700 after:flex-1 after:border-t after:border-gray-300 dark:after:border-gray-700"
-      role="separator"
-    >
-      <p class="mx-4 text-center text-sm text-gray-500 dark:text-gray-400">
-        OR
-      </p>
-    </div>
+    <div class="my-6 separator"></div>
     <form
       bind:this={formElement}
       on:submit={handleSubmit}
@@ -136,7 +112,7 @@
             bind:value={email}
             autocomplete="email"
             required
-            class="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white sm:text-sm bg-gray-100 dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="input rounded-xl bg-white/70 dark:bg-black/40 border-neutral-200/70 dark:border-neutral-800/70 placeholder-neutral-500 dark:placeholder-neutral-500"
             aria-describedby={error ? "login-error" : undefined}
             disabled={loading}
             placeholder="Enter your email"
@@ -158,7 +134,7 @@
             bind:value={password}
             autocomplete="current-password"
             required
-            class="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white sm:text-sm bg-gray-100 dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="input rounded-xl bg-white/70 dark:bg-black/40 border-neutral-200/70 dark:border-neutral-800/70 placeholder-neutral-500 dark:placeholder-neutral-500"
             aria-describedby={error ? "login-error" : undefined}
             disabled={loading}
             placeholder="Enter your password"
@@ -184,8 +160,8 @@
       <div>
         <button
           type="submit"
-          disabled={loading}
-          class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-black dark:bg-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black dark:focus:ring-white disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading || !isFormValid}
+          class="w-full flex justify-center py-3 px-4 rounded-full text-sm font-semibold text-white bg-black dark:bg-white dark:text-black hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {#if loading}
             <svg
@@ -221,7 +197,7 @@
         Do not have an account?
         <a
           href="/register"
-          class="font-medium text-black dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black dark:focus:ring-white"
+          class="font-semibold text-black dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
         >
           Register
         </a>

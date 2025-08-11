@@ -1,4 +1,4 @@
-<!-- ModelComparison.svelte -->
+
 <script lang="ts">
     import { llmStore } from '$lib/stores/llm';
     import { notifications } from '$lib/stores/notifications';
@@ -14,7 +14,7 @@
     let isLoading: Record<string, boolean> = {};
     let error: Record<string, string> = {};
 
-    $: availableModels = $llmStore.models.filter(m => !selectedModels.includes(m.id));
+    $: availableModels = [...$llmStore.freeModels, ...$llmStore.nonFreeModels].filter(m => !selectedModels.includes(m.id));
 
     async function addModel(modelId: string) {
         selectedModels = [...selectedModels, modelId];
@@ -41,9 +41,10 @@
             responses[modelId] = data;
         } catch (e) {
             error[modelId] = e instanceof Error ? e.message : 'Failed to get response';
+            const modelName = [...$llmStore.freeModels, ...$llmStore.nonFreeModels].find(m => m.id === modelId)?.name || modelId;
             notifications.add({
                 type: 'error',
-                message: `Error getting response from ${$llmStore.models.find(m => m.id === modelId)?.name || modelId}`,
+                message: `Error getting response from ${modelName}`,
             });
         } finally {
             isLoading[modelId] = false;
@@ -103,7 +104,7 @@
 
         <div class="responses-grid">
             {#each selectedModels as modelId}
-                {@const model = $llmStore.models.find(m => m.id === modelId)}
+                {@const model = [...$llmStore.freeModels, ...$llmStore.nonFreeModels].find(m => m.id === modelId)}
                 <div class="response-card">
                     <div class="response-header">
                         <h3>{model?.name || modelId}</h3>

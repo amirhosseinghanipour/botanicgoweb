@@ -22,6 +22,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"regexp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 	"golang.org/x/oauth2/google"
@@ -57,6 +58,8 @@ type LoginRequest struct {
 	Email      string `json:"email"`
 	Password   string `json:"password"`
 	RememberMe bool   `json:"remember_me"`
+    // Support alternate camelCase key from clients
+    RememberMeAlt bool `json:"rememberMe"`
 }
 
 type AuthResponse struct {
@@ -112,6 +115,15 @@ func Register(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
+    // Sanitize and validate input
+    req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+    if !isValidEmail(req.Email) {
+        return echo.NewHTTPError(http.StatusBadRequest, "invalid email")
+    }
+    if !isValidPassword(req.Password) {
+        return echo.NewHTTPError(http.StatusBadRequest, "invalid password")
+    }
+
 	// Check if user already exists
 	existingUser, _ := models.GetUserByEmail(req.Email)
 	if existingUser != nil {
@@ -144,6 +156,17 @@ func Login(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
+
+    // Normalize rememberMe across possible payload keys
+    if !req.RememberMe {
+        req.RememberMe = req.RememberMeAlt
+    }
+
+    // Sanitize and validate input
+    req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+    if !isValidEmail(req.Email) || !isValidPassword(req.Password) {
+        return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
+    }
 
 	// Get user by email
 	user, err := models.GetUserByEmail(req.Email)
@@ -182,6 +205,24 @@ func Login(c echo.Context) error {
 	resp.Session.ExpiresAt = session.ExpiresAt
 
 	return c.JSON(http.StatusOK, resp)
+}
+
+// isValidEmail performs a basic RFC5322-like email validation
+var emailRe = regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$`)
+
+func isValidEmail(email string) bool {
+    if len(email) < 3 || len(email) > 254 {
+        return false
+    }
+    return emailRe.MatchString(email)
+}
+
+// isValidPassword enforces a reasonable length
+func isValidPassword(pw string) bool {
+    if len(pw) < 8 || len(pw) > 128 {
+        return false
+    }
+    return true
 }
 
 // RefreshToken handles token refresh

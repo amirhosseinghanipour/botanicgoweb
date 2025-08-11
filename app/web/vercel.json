@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "buildCommand": "pnpm install --frozen-lockfile=false && pnpm build",
+  "installCommand": "pnpm install --frozen-lockfile=false",
+  "framework": "sveltekit",
+  "env": {
+    "VITE_API_URL": "https://YOUR-BACKEND-URL"
+  }
+}
+
